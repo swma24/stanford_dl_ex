@@ -41,6 +41,6 @@ indicator = zeros(size(p_h));
 indicator(index) = 1;
 g = -X * (indicator - p_h);
 
-g=g(:, 1:end - 1);
-g=g(:); % make gradient a vector for minFunc
+  g=g(:, 1:end - 1);
+  g=g(:); % make gradient a vector for minFunc
 
