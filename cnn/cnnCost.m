@@ -72,6 +72,8 @@ activations = zeros(convDim,convDim,numFilters,numImages);
 activationsPooled = zeros(outputDim,outputDim,numFilters,numImages);
 
 %%% YOUR CODE HERE %%%
+activations = activations + cnnConvolve(filterDim, numFilters, images, Wc, bc);
+activationsPooled = activationsPooled + cnnPool(poolDim, activations);
 
 % Reshape activations into 2-d matrix, hiddenSize x numImages,
 % for Softmax layer
@@ -88,6 +90,9 @@ activationsPooled = reshape(activationsPooled,[],numImages);
 probs = zeros(numClasses,numImages);
 
 %%% YOUR CODE HERE %%%
+fpProp = exp(Wd*activationsPooled + repmat(bd,1,numImages));
+% fpProp = bsxfun(@minus, fpProp, max(fpProp, [], 1));
+probs = bsxfun(@rdivide, fpProp, sum(fpProp));
 
 %%======================================================================
 %% STEP 1b: Calculate Cost
@@ -98,6 +103,9 @@ probs = zeros(numClasses,numImages);
 cost = 0; % save objective into cost
 
 %%% YOUR CODE HERE %%%
+groundTruth = sparse(labels, 1:numImages, 1);
+cost = -mean(sum(groundTruth.*log(probs)));
+cost = full(cost);
 
 % Makes predictions given probs and returns without backproagating errors.
 if pred
@@ -118,6 +126,18 @@ end;
 %  quickly.
 
 %%% YOUR CODE HERE %%%
+outputGrad = -(groundTruth - probs);
+pooledGrad = Wd' * outputGrad;
+pooledGrad = reshape(pooledGrad,outputDim,outputDim,numFilters,numImages);
+
+upsampledGrad = zeros(convDim,convDim,numFilters,numImages);
+for imageNum = 1:numImages
+    for filterNum = 1:numFilters
+        convoledGrad = (1/poolDim^2) * kron(pooledGrad(:,:,filterNum,imageNum),ones(poolDim));
+        activationGrad = activations(:,:,filterNum,imageNum) .* (1 - activations(:,:,filterNum,imageNum));
+        upsampledGrad(:,:,filterNum,imageNum) = convoledGrad .* activationGrad;
+    end
+end
 
 %%======================================================================
 %% STEP 1d: Gradient Calculation
@@ -128,6 +148,21 @@ end;
 %  for that filter with each image and aggregate over images.
 
 %%% YOUR CODE HERE %%%
+Wd_grad = outputGrad * activationsPooled';
+bd_grad = outputGrad * ones(numImages,1);
+for imageNum = 1:numImages
+    im = squeeze(images(:,:,imageNum));
+    for filterNum = 1:numFilters
+        upsampledGradOne = squeeze(upsampledGrad(:,:,filterNum,imageNum));
+        upsampledGradFlipped = rot90(upsampledGradOne,2);
+        Wc_grad(:,:,filterNum) = Wc_grad(:,:,filterNum) + conv2(im,upsampledGradFlipped,'valid');
+        bc_grad(filterNum) = bc_grad(filterNum) + sum(upsampledGradOne(:));
+    end
+end
+Wc_grad = Wc_grad / numImages;
+bc_grad = bc_grad / numImages;
+Wd_grad = Wd_grad / numImages;
+bd_grad = bd_grad / numImages;
 
 %% Unroll gradient into grad vector for minFunc
 grad = [Wc_grad(:) ; Wd_grad(:) ; bc_grad(:) ; bd_grad(:)];
