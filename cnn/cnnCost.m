@@ -130,12 +130,12 @@ outputGrad = -(groundTruth - probs);
 pooledGrad = Wd' * outputGrad;
 pooledGrad = reshape(pooledGrad,outputDim,outputDim,numFilters,numImages);
 
-upsampledGrad = zeros(convDim,convDim,numFilters,numImages);
+convolvedGrad = zeros(convDim,convDim,numFilters,numImages);
 for imageNum = 1:numImages
     for filterNum = 1:numFilters
-        convoledGrad = (1/poolDim^2) * kron(pooledGrad(:,:,filterNum,imageNum),ones(poolDim));
+        upsampledGrad = (1/poolDim^2) * kron(pooledGrad(:,:,filterNum,imageNum),ones(poolDim));
         activationGrad = activations(:,:,filterNum,imageNum) .* (1 - activations(:,:,filterNum,imageNum));
-        upsampledGrad(:,:,filterNum,imageNum) = convoledGrad .* activationGrad;
+        convolvedGrad(:,:,filterNum,imageNum) = upsampledGrad .* activationGrad;
     end
 end
 
@@ -153,10 +153,10 @@ bd_grad = outputGrad * ones(numImages,1);
 for imageNum = 1:numImages
     im = squeeze(images(:,:,imageNum));
     for filterNum = 1:numFilters
-        upsampledGradOne = squeeze(upsampledGrad(:,:,filterNum,imageNum));
-        upsampledGradFlipped = rot90(upsampledGradOne,2);
-        Wc_grad(:,:,filterNum) = Wc_grad(:,:,filterNum) + conv2(im,upsampledGradFlipped,'valid');
-        bc_grad(filterNum) = bc_grad(filterNum) + sum(upsampledGradOne(:));
+        convolvedGradOne = squeeze(convolvedGrad(:,:,filterNum,imageNum));
+        convolvedGradFlipped = rot90(convolvedGradOne,2);
+        Wc_grad(:,:,filterNum) = Wc_grad(:,:,filterNum) + conv2(im,convolvedGradFlipped,'valid');
+        bc_grad(filterNum) = bc_grad(filterNum) + sum(convolvedGradOne(:));
     end
 end
 Wc_grad = Wc_grad / numImages;
